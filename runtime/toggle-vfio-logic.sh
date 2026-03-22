@@ -80,12 +80,16 @@ gpu_has_open_vendor_handles() {
     local current_driver dev_node
 
     current_driver=$(get_drv "$GPU_ID")
-    [ "$current_driver" = "nvidia" ] || return 1
-
-    for dev_node in /dev/nvidia*; do
-        [ -e "$dev_node" ] || continue
-        fuser "$dev_node" >/dev/null 2>&1 && return 0
-    done
+    if [ "$current_driver" = "nvidia" ]; then
+        for dev_node in /dev/nvidia*; do
+            [ -e "$dev_node" ] || continue
+            fuser "$dev_node" >/dev/null 2>&1 && return 0
+        done
+    elif [ "$current_driver" = "amdgpu" ]; then
+        if [ -e "/dev/kfd" ] && fuser "/dev/kfd" >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
 
     return 1
 }
@@ -150,6 +154,12 @@ report_gpu_usage() {
                 reported=1
             fi
         done
+    elif [ "$current_driver" = "amdgpu" ]; then
+        if [ -e "/dev/kfd" ] && fuser "/dev/kfd" >/dev/null 2>&1; then
+            echo "- Processes using /dev/kfd:"
+            report_processes_for_device "/dev/kfd"
+            reported=1
+        fi
     fi
 
     if [ $reported -eq 0 ]; then
@@ -255,6 +265,7 @@ kill_gpu_processes() {
     # Force-release open handles that would block unbinding the GPU.
     echo "[2/5] Killing processes using GPU/Audio..."
     fuser -v -k -9 /dev/nvidia* 2>/dev/null || true
+    fuser -v -k -9 /dev/kfd 2>/dev/null || true
     fuser -v -k -9 /dev/snd/* 2>/dev/null || true
     sleep 1
 }
@@ -296,8 +307,9 @@ switch_to_vfio_with_session_stop() {
 
     kill_gpu_processes
 
-    echo "[3/5] Unloading NVIDIA/Nouveau..."
+    echo "[3/5] Unloading NVIDIA/AMD/Nouveau..."
     modprobe -r nvidia_drm nvidia_modeset nvidia_uvm nvidia 2>/dev/null || true
+    modprobe -r amdgpu 2>/dev/null || true
     modprobe -r nouveau 2>/dev/null || true
 
     echo "[4/5] Binding to VFIO..."
@@ -308,8 +320,9 @@ switch_to_vfio_with_session_stop() {
 switch_to_vfio_without_session_stop() {
     echo "[1/3] Target GPU appears idle; skipping display manager stop."
 
-    echo "[2/3] Unloading NVIDIA/Nouveau..."
+    echo "[2/3] Unloading NVIDIA/AMD/Nouveau..."
     modprobe -r nvidia_drm nvidia_modeset nvidia_uvm nvidia 2>/dev/null || true
+    modprobe -r amdgpu 2>/dev/null || true
     modprobe -r nouveau 2>/dev/null || true
 
     echo "[3/3] Binding to VFIO..."
@@ -336,8 +349,12 @@ switch_to_host() {
     echo "1" > /sys/bus/pci/rescan
     sleep 1
 
-    echo "[4/4] Loading NVIDIA drivers..."
-    modprobe nvidia nvidia_modeset nvidia_uvm nvidia_drm
+    echo "[4/4] Loading Host drivers..."
+    if grep -i "0x10de" /sys/bus/pci/devices/"$GPU_ID"/vendor >/dev/null 2>&1; then
+        modprobe nvidia nvidia_modeset nvidia_uvm nvidia_drm
+    elif grep -i "0x1002" /sys/bus/pci/devices/"$GPU_ID"/vendor >/dev/null 2>&1; then
+        modprobe amdgpu
+    fi
 }
 
 main() {

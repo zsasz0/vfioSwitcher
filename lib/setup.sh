@@ -9,7 +9,7 @@ write_service_unit() {
     # Create the systemd oneshot unit that executes the installed runtime script.
     cat <<EOF > "$SERVICE_PATH"
 [Unit]
-Description=Toggle VFIO/NVIDIA
+Description=Toggle VFIO/Host GPU
 After=network.target
 
 [Service]

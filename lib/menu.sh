@@ -14,8 +14,10 @@ render_menu() {
 
     if [[ "$driver" == "vfio-pci" ]]; then
         status="\e[35mPASSTHROUGH (VFIO)\e[0m"
+    elif [[ "$driver" != "none" ]]; then
+        status="\e[32mHOST ($driver)\e[0m"
     else
-        status="\e[32mHOST (NVIDIA)\e[0m"
+        status="\e[33mHOST (UNKNOWN)\e[0m"
     fi
 
     clear

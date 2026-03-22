@@ -7,14 +7,14 @@
 # AUTO_GPU and AUTO_AUDIO cache the first detected values so the rest of the
 # app can use them as defaults without repeating discovery on every call.
 
-detect_primary_nvidia_gpu() {
-    # Returns the PCI ID of the first NVIDIA VGA/3D controller, if present.
-    lspci -Dnn | grep -E "VGA|3D" | grep -i "NVIDIA" | head -n 1 | awk '{print $1}'
+detect_primary_gpu() {
+    # Returns the PCI ID of the first NVIDIA or AMD VGA/3D controller, if present.
+    lspci -Dnn | grep -E "VGA|3D" | grep -E -i "NVIDIA|Advanced Micro Devices.*\[AMD" | head -n 1 | awk '{print $1}'
 }
 
-detect_nvidia_audio() {
-    # Returns the PCI ID of the first NVIDIA audio controller, if present.
-    lspci -Dnn | grep -i "Audio" | grep -i "NVIDIA" | head -n 1 | awk '{print $1}'
+detect_primary_audio() {
+    # Returns the PCI ID of the first NVIDIA or AMD audio controller, if present.
+    lspci -Dnn | grep -i "Audio" | grep -E -i "NVIDIA|Advanced Micro Devices.*\[AMD" | head -n 1 | awk '{print $1}'
 }
 
 get_current_driver() {
@@ -29,5 +29,5 @@ get_current_driver() {
 }
 
 # Default hardware targets used by the menu/setup flow unless manually overridden.
-AUTO_GPU=${AUTO_GPU:-$(detect_primary_nvidia_gpu)}
-AUTO_AUDIO=${AUTO_AUDIO:-$(detect_nvidia_audio)}
+AUTO_GPU=${AUTO_GPU:-$(detect_primary_gpu)}
+AUTO_AUDIO=${AUTO_AUDIO:-$(detect_primary_audio)}
