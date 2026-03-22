@@ -8,6 +8,9 @@ A bash script to switch between GPUs for VFIO passthrough.
 > [!WARNING]
 > This is tested only on an NVIDIA GPU + AMD iGPU setup.
 
+> [!NOTE]
+> The reason a systemd service is used is so the toggle script runs completely decoupled from your current desktop session (similar to running it in a separate TTY). This ensures that when the script stops your display manager session to free the GPU, the script itself isn't killed in the process and can finish execution.
+
 ## Usage
 
 Run the script with administrative privileges:
@@ -25,9 +28,6 @@ When you execute the script, it scans your PCI devices via `lspci` to detect you
 
 ### 2. Setup Phase
 Using the interactive menu, you can generate an environment configuration file (`/etc/toggle-vfio.conf`) that stores your target GPU and audio device IDs. It also creates a systemd service (`toggle-vfio.service`) and places the core toggle logic (`toggle-vfio-logic.sh`) in your `/usr/local/bin` directory.
-
-> [!NOTE]
-> The reason a systemd service is used is so the toggle script runs completely decoupled from your current desktop session (similar to running it in a separate TTY). This ensures that when the script stops your display manager session to free the GPU, the script itself isn't killed in the process and can finish execution.
 
 ### 3. Toggling Logic
 When you request a switch, the script probes your current session state:
