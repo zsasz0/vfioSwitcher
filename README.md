@@ -2,7 +2,7 @@
 
 A bash script to switch between GPUs for VFIO passthrough.
 
-https://github.com/zsasz0/vfioSwitcher/raw/master/Demo.mp4
+<video src="https://github.com/zsasz0/vfioSwitcher/raw/master/Demo.mp4" autoplay loop muted playsinline width="100%"></video>
 
 > [!WARNING]
 > This works only with 2 GPUs (it's ok if one of them is an iGPU).
