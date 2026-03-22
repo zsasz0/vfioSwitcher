@@ -264,9 +264,55 @@ start_display_manager() {
 kill_gpu_processes() {
     # Force-release open handles that would block unbinding the GPU.
     echo "[2/5] Killing processes using GPU/Audio..."
-    fuser -v -k -9 /dev/nvidia* 2>/dev/null || true
-    fuser -v -k -9 /dev/kfd 2>/dev/null || true
+    if grep -i "0x10de" /sys/bus/pci/devices/"$GPU_ID"/vendor >/dev/null 2>&1; then
+        fuser -v -k -9 /dev/nvidia* 2>/dev/null || true
+    elif grep -i "0x1002" /sys/bus/pci/devices/"$GPU_ID"/vendor >/dev/null 2>&1; then
+        fuser -v -k -9 /dev/kfd 2>/dev/null || true
+    fi
     fuser -v -k -9 /dev/snd/* 2>/dev/null || true
+
+    local drm_node dev_node
+    for drm_node in /sys/bus/pci/devices/"$GPU_ID"/drm/card*; do
+        [ -e "$drm_node" ] || continue
+        dev_node="/dev/dri/$(basename "$drm_node")"
+        fuser -v -k -9 "$dev_node" 2>/dev/null || true
+    done
+    for dev_node in /dev/dri/renderD*; do
+        [ -e "$dev_node" ] || continue
+        if [ "$(readlink -f "/sys/class/drm/$(basename "$dev_node")/device")" = \
+            "$(readlink -f "/sys/bus/pci/devices/$GPU_ID")" ]; then
+            fuser -v -k -9 "$dev_node" 2>/dev/null || true
+        fi
+    done
+
+    sleep 1
+}
+
+unbind_framebuffer() {
+    echo "Unbinding VT consoles and EFI framebuffer..."
+    if test -e /sys/class/vtconsole/vtcon0/bind; then
+        echo 0 > /sys/class/vtconsole/vtcon0/bind 2>/dev/null || true
+    fi
+    if test -e /sys/class/vtconsole/vtcon1/bind; then
+        echo 0 > /sys/class/vtconsole/vtcon1/bind 2>/dev/null || true
+    fi
+    if test -e /sys/bus/platform/drivers/efi-framebuffer/unbind; then
+        echo efi-framebuffer.0 > /sys/bus/platform/drivers/efi-framebuffer/unbind 2>/dev/null || true
+    fi
+    if test -e /sys/bus/platform/drivers/simple-framebuffer/unbind; then
+        echo simple-framebuffer.0 > /sys/bus/platform/drivers/simple-framebuffer/unbind 2>/dev/null || true
+    fi
+    sleep 1
+}
+
+bind_framebuffer() {
+    echo "Rebinding VT consoles..."
+    if test -e /sys/class/vtconsole/vtcon0/bind; then
+        echo 1 > /sys/class/vtconsole/vtcon0/bind 2>/dev/null || true
+    fi
+    if test -e /sys/class/vtconsole/vtcon1/bind; then
+        echo 1 > /sys/class/vtconsole/vtcon1/bind 2>/dev/null || true
+    fi
     sleep 1
 }
 
@@ -305,25 +351,37 @@ switch_to_vfio_with_session_stop() {
     # Host GPU -> VFIO handoff sequence when the target GPU is active.
     stop_display_manager
 
+    unbind_framebuffer
+
     kill_gpu_processes
 
-    echo "[3/5] Unloading NVIDIA/AMD/Nouveau..."
-    modprobe -r nvidia_drm nvidia_modeset nvidia_uvm nvidia 2>/dev/null || true
-    modprobe -r amdgpu 2>/dev/null || true
-    modprobe -r nouveau 2>/dev/null || true
+    echo "[3/5] Unloading target GPU drivers..."
+    if grep -i "0x10de" /sys/bus/pci/devices/"$GPU_ID"/vendor >/dev/null 2>&1; then
+        modprobe -r nvidia_drm nvidia_modeset nvidia_uvm nvidia nouveau 2>/dev/null || true
+    elif grep -i "0x1002" /sys/bus/pci/devices/"$GPU_ID"/vendor >/dev/null 2>&1; then
+        modprobe -r amdgpu 2>/dev/null || true
+    fi
 
     echo "[4/5] Binding to VFIO..."
     bind_devices_to_vfio
+    
+    bind_framebuffer
+    
+    # Wait for drivers to settle before starting DM
+    sleep 2
+    
     start_display_manager
 }
 
 switch_to_vfio_without_session_stop() {
     echo "[1/3] Target GPU appears idle; skipping display manager stop."
 
-    echo "[2/3] Unloading NVIDIA/AMD/Nouveau..."
-    modprobe -r nvidia_drm nvidia_modeset nvidia_uvm nvidia 2>/dev/null || true
-    modprobe -r amdgpu 2>/dev/null || true
-    modprobe -r nouveau 2>/dev/null || true
+    echo "[2/3] Unloading target GPU drivers..."
+    if grep -i "0x10de" /sys/bus/pci/devices/"$GPU_ID"/vendor >/dev/null 2>&1; then
+        modprobe -r nvidia_drm nvidia_modeset nvidia_uvm nvidia nouveau 2>/dev/null || true
+    elif grep -i "0x1002" /sys/bus/pci/devices/"$GPU_ID"/vendor >/dev/null 2>&1; then
+        modprobe -r amdgpu 2>/dev/null || true
+    fi
 
     echo "[3/3] Binding to VFIO..."
     bind_devices_to_vfio
@@ -355,6 +413,8 @@ switch_to_host() {
     elif grep -i "0x1002" /sys/bus/pci/devices/"$GPU_ID"/vendor >/dev/null 2>&1; then
         modprobe amdgpu
     fi
+
+    bind_framebuffer
 }
 
 main() {
