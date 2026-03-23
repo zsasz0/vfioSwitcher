@@ -31,7 +31,7 @@ do_setup() {
     # Refuse setup when no GPU target can be detected or has been provided.
     if [ -z "$target_gpu" ]; then
         echo "Error: No GPU detected."
-        read -r
+        sleep 2
         return
     fi
 
@@ -41,5 +41,5 @@ do_setup() {
     write_service_unit
     systemctl daemon-reload
     echo "Config applied successfully."
-    read -r
+    sleep 2
 }

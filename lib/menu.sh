@@ -1,28 +1,38 @@
 #!/bin/bash
 
+#this scrupt will use functions from the following files:
+# lib/config.sh : used for retrieving configuration settings and environment variables.
+# lib/hardware.sh : used for hardware detection and management utilities.
+# lib/runtime.sh : used for core runtime functions and utility helpers.
+# lib/setup.sh : used for system setup and installation procedures.
+
 # Interactive terminal UI.
 #
 # This module renders the status screen, maps user choices to actions,
 # and keeps the application running until the user exits.
 
 render_menu() {
+    # target_gpu: The GPU device identifier to be displayed and managed.
     local target_gpu=${MANUAL_GPU:-$AUTO_GPU}
+    # driver: The kernel driver currently bound to the target_gpu.
+    # status: The formatted status message for the menu banner.
     local driver status
 
     # Reflect the current binding for the selected GPU in the status banner.
     driver=$(get_current_driver "$target_gpu")
 
-    if [[ "$driver" == "vfio-pci" ]]; then
-        status="\e[35mPASSTHROUGH (VFIO)\e[0m"
-    elif [[ "$driver" != "none" ]]; then
-        status="\e[32mHOST ($driver)\e[0m"
-    else
-        status="\e[33mHOST (UNKNOWN)\e[0m"
-    fi
+    case "$driver" in
+        # GPU is bound to VFIO driver for passthrough.
+        vfio-pci) status="\e[35mPASSTHROUGH (VFIO)\e[0m" ;;
+        # No driver is currently bound to the GPU.
+        none)     status="\e[33mHOST (UNKNOWN)\e[0m" ;;
+        # GPU is bound to a host-side driver (e.g., nvidia, amdgpu).
+        *)        status="\e[32mHOST ($driver)\e[0m" ;;
+    esac
 
     clear
     echo "=========================================="
-    echo "       GPU PASSTHROUGH TOGGLE v4"
+    echo "       GPU PASSTHROUGH TOGGLE"
     echo "=========================================="
     echo -e " STATUS: $status"
     echo " GPU ID: $target_gpu"
@@ -44,15 +54,18 @@ handle_menu_option() {
     esac
 }
 
+
+# run_toggle_mode: Probes the system for active sessions and executes the GPU driver toggle.
 run_toggle_mode() {
-    local probe_status
-    local probe_output
-    local reply
-    local toggle_status
+    # probe_status: Exit code of the GPU session state probe.
+    # probe_output: Diagnostic output from the session state probe.
+    # reply: User input for confirmation to stop the display manager.
+    # toggle_status: Exit status of the systemd service restart.
+    local probe_status probe_output reply toggle_status
 
     if [ ! -x "$SCRIPT_PATH" ]; then
         echo "Toggle runtime is not installed yet. Run setup first."
-        read -r
+        sleep 2
         return
     fi
 
@@ -69,14 +82,14 @@ run_toggle_mode() {
                 ;;
             *)
                 echo "Switch cancelled."
-                read -r
+                sleep 2
                 return
                 ;;
         esac
     elif [ $probe_status -ne 0 ]; then
         echo "Toggle pre-check failed."
         [ -n "$probe_output" ] && echo "$probe_output"
-        read -r
+        sleep 3
         return
     fi
 
@@ -88,9 +101,10 @@ run_toggle_mode() {
     fi
     if [ $toggle_status -ne 0 ]; then
         echo "Toggle operation failed."
+        sleep 3
+    else
+        sleep 1
     fi
-
-    read -r
 }
 
 main() {
@@ -98,8 +112,15 @@ main() {
 
     # Main application loop for the interactive menu.
     while true; do
+        # Display the interactive menu and current GPU status banner.
         render_menu
+        # Read the user's numeric selection into the 'opt' variable.
         read -r opt
+        # Dispatch the user's choice to the appropriate handler function .
         handle_menu_option "$opt"
+
+        
+        # Loop continues until the user exits.
     done
 }
+
