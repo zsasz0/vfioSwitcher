@@ -9,12 +9,33 @@
 
 detect_primary_gpu() {
     # Returns the PCI ID of the first NVIDIA or AMD VGA/3D controller, if present.
-    lspci -Dnn | grep -E "VGA|3D" | grep -E -i "NVIDIA|Advanced Micro Devices.*\[AMD" | head -n 1 | awk '{print $1}'
+    local dev class vendor
+    for dev in /sys/bus/pci/devices/*; do
+        [ -e "$dev/class" ] && read -r class < "$dev/class" 2>/dev/null || continue
+        [ -e "$dev/vendor" ] && read -r vendor < "$dev/vendor" 2>/dev/null || continue
+        
+        # Class 0x03xxxx is Display Controller (VGA/3D)
+        # Vendor 0x10de is NVIDIA, 0x1002/0x1022 are AMD
+        if [[ "$class" == 0x03* ]] && [[ "$vendor" == "0x10de" || "$vendor" == "0x1002" || "$vendor" == "0x1022" ]]; then
+            basename "$dev"
+            return 0
+        fi
+    done
 }
 
 detect_primary_audio() {
     # Returns the PCI ID of the first NVIDIA or AMD audio controller, if present.
-    lspci -Dnn | grep -i "Audio" | grep -E -i "NVIDIA|Advanced Micro Devices.*\[AMD" | head -n 1 | awk '{print $1}'
+    local dev class vendor
+    for dev in /sys/bus/pci/devices/*; do
+        [ -e "$dev/class" ] && read -r class < "$dev/class" 2>/dev/null || continue
+        [ -e "$dev/vendor" ] && read -r vendor < "$dev/vendor" 2>/dev/null || continue
+        
+        # Class 0x04xxxx is Multimedia Controller (Audio)
+        if [[ "$class" == 0x04* ]] && [[ "$vendor" == "0x10de" || "$vendor" == "0x1002" || "$vendor" == "0x1022" ]]; then
+            basename "$dev"
+            return 0
+        fi
+    done
 }
 
 get_current_driver() {
