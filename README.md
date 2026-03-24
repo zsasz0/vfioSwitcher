@@ -26,7 +26,7 @@ sudo ./main.sh
 The `vfioSwitcher` script automates the process of unbinding your designated GPU from its host drivers and binding it to `vfio-pci` for virtual machine passthrough, and vice versa. It works using a mix of installer scripts and a systemd unit.
 
 ### 1. Hardware Detection
-When you execute the script, it scans your PCI devices via `lspci` to detect your primary target GPU (AMD or NVIDIA) and its companion audio controller automatically.
+When you execute the script, it scans your PCI devices to detect your primary target GPU (AMD or NVIDIA) and its companion audio controller automatically.
 
 ### 2. Setup Phase
 Using the interactive menu, you can generate an environment configuration file (`/etc/toggle-vfio.conf`) that stores your target GPU and audio device IDs. It also creates a systemd service (`toggle-vfio.service`) and places the core toggle logic (`toggle-vfio-logic.sh`) in your `/usr/local/bin` directory.
