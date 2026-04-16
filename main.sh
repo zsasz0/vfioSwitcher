@@ -15,7 +15,6 @@ fi
 # Resolve the repository directory so sourced modules work from any cwd.
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-bash
 # Load configuration settings and environment variables.
 source "$SCRIPT_DIR/lib/config.sh"
 
